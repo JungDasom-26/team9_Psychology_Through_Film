@@ -1,7 +1,8 @@
 streamlit
 pandas
+matplotlib
 google-api-python-client
 kiwipiepy
-matplotlib
+selenium
 transformers
 torch
