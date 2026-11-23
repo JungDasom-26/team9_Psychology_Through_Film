@@ -344,29 +344,113 @@ def get_cgv_movie_reviews(url: str, max_results: int = 50) -> list:
 
 
 # ----------------------------------------------------
-# 3. AI 모델 감정 분석 및 단어 추출 함수
+# 3. 텍스트 전처리, AI 모델 감정 분석 및 단어 추출 함수
 # ----------------------------------------------------
+STOPWORDS = {
+    "영화",
+    "호프",
+    "작품",
+    "사람",
+    "생각",
+    "느낌",
+    "부분",
+    "정도",
+    "진짜",
+    "정말",
+    "너무",
+    "완전",
+    "조금",
+    "약간",
+    "그냥",
+    "하다",
+    "되다",
+    "있다",
+    "없다",
+    "보다",
+    "같다",
+    "않다",
+    "그렇다",
+    "이렇다",
+    "저렇다",
+    "오다",
+    "가다",
+    "주다",
+    "받다",
+    "만들다",
+    "나오다",
+    "들다",
+}
+
+
+def clean_comment_text(text: str) -> str:
+    """1~2단계 전처리: URL, 타임스탬프, HTML, 이모지 제거 및 반복 문자 정규화"""
+    if not isinstance(text, str):
+        return ""
+
+    # HTML 태그 및 엔티티 제거
+    text = re.sub(r"<[^>]+>", " ", text)
+    text = re.sub(r"&[a-zA-Z0-9#]+;", " ", text)
+
+    # URL 제거
+    text = re.sub(r"https?://\S+|www\.\S+", " ", text)
+
+    # 유튜브 타임스탬프 제거 (예: 01:23, 1:02:33)
+    text = re.sub(r"\b\d{1,2}:\d{2}(?::\d{2})?\b", " ", text)
+
+    # 한글, 영문, 숫자, 기본 문장부호(.,!?~) 외 이모지 및 특수기호 제거
+    text = re.sub(r"[^가-힣ㄱ-ㅎㅏ-ㅣa-zA-Z0-9\s.,!?~]", " ", text)
+
+    # 3회 이상 반복되는 문자 정규화 (예: ㅋㅋㅋㅋㅋ -> ㅋㅋ, ㅠㅠㅠㅠ -> ㅠㅠ, !!!!! -> !!)
+    text = re.sub(r"(.)\1{2,}", r"\1\1", text)
+
+    # 연속 공백 및 줄바꿈을 단일 공백으로 정리
+    text = re.sub(r"\s+", " ", text).strip()
+    return text
+
+
+def preprocess_dataframe(df: pd.DataFrame) -> pd.DataFrame:
+    """3단계 전처리: 텍스트 정제 후 무의미한 단답(3자 미만) 및 중복 댓글 필터링"""
+    df = df.copy()
+    df["전처리 댓글"] = df["댓글 내용"].apply(clean_comment_text)
+
+    # 정제 후 길이가 3자 미만인 무의미 댓글 제외
+    df = df[df["전처리 댓글"].str.len() >= 3]
+
+    # 전처리된 텍스트 기준 중복 댓글 제거
+    df = df.drop_duplicates(subset=["전처리 댓글"]).reset_index(drop=True)
+    return df
+
+
 def extract_keywords_from_comment(text: str, kiwi: Kiwi) -> list:
-    """댓글에서 주요 의미를 가진 명사, 형용사, 동사 어간 추출"""
+    """4단계 전처리: 불용어(Stopwords)를 제외하고 의미 있는 명사, 형용사, 동사 어간 추출"""
     tokens = kiwi.tokenize(text)
     valid_tags = {"NNG", "NNP", "VA", "VV", "XR"}
-    return [
-        token.form
-        for token in tokens
-        if token.tag in valid_tags and len(token.form) > 1
-    ]
+    keywords = []
+    for token in tokens:
+        if (
+            token.tag in valid_tags
+            and len(token.form) > 1
+            and token.form not in STOPWORDS
+        ):
+            if token.form not in keywords:
+                keywords.append(token.form)
+    return keywords
 
 
 def analyze_dataframe_sentiment(
     df: pd.DataFrame, classifier, kiwi: Kiwi
 ) -> pd.DataFrame:
-    """AI 모델을 통해 댓글 감정 판별, 점수 계산 및 키워드 추출"""
+    """전처리된 텍스트를 바탕으로 AI 감정 판별, 점수 계산 및 키워드 추출"""
+    df = preprocess_dataframe(df)
+    if df.empty:
+        return df
+
     sentiments = []
     scores = []
     extracted_words_list = []
 
-    for comment in df["댓글 내용"]:
-        result = classifier(comment)[0]
+    for clean_text in df["전처리 댓글"]:
+        result = classifier(clean_text)[0]
         label_raw = result["label"].upper()
         confidence = result["score"]
 
@@ -377,7 +461,7 @@ def analyze_dataframe_sentiment(
             label = "부정"
             sentiment_score = round(-confidence * 100, 2)
 
-        keywords = extract_keywords_from_comment(comment, kiwi)
+        keywords = extract_keywords_from_comment(clean_text, kiwi)
 
         sentiments.append(label)
         scores.append(sentiment_score)
@@ -425,7 +509,6 @@ def draw_sentiment_pie(df: pd.DataFrame, title: str):
 # ----------------------------------------------------
 def main():
     set_korean_font()
-    # [수정 1] 제목 변경
     st.title("영화 호프로 알아보는 심리학")
 
     classifier = load_sentiment_model()
@@ -437,7 +520,6 @@ def main():
         "YouTube Data API v3 키를 입력하세요 (유튜브 분석 시 필수)",
         type="password",
     )
-    # [수정 5] 유튜브 1, 2, 3 -> 유튜브 중립, 부정, 긍정
     url_1 = st.text_input(
         "유튜브 중립 URL",
         placeholder="https://www.youtube.com/watch?v=...",
@@ -455,7 +537,6 @@ def main():
     )
 
     # 웹 크롤링 설정 (네이버 영화 / CGV)
-    # [수정 2] '(Selenium)' 문구 제거
     st.subheader("2. 영화 리뷰 웹사이트 수집 설정")
     naver_target = st.text_input(
         "네이버 영화 제목 (또는 리뷰 URL)",
@@ -469,7 +550,6 @@ def main():
     )
 
     if st.button("분석 시작"):
-        # [수정 5] 라벨 매핑 적용
         youtube_inputs = [
             ("유튜브 중립", url_1),
             ("유튜브 부정", url_2),
@@ -527,7 +607,7 @@ def main():
                 label = task["label"]
                 target = task["target"]
                 t_type = task["type"]
-                status.write(f"[{label}] 데이터 수집 및 감정 분석 시작")
+                status.write(f"[{label}] 데이터 수집, 전처리 및 감정 분석 시작")
 
                 try:
                     if t_type == "youtube":
@@ -543,19 +623,25 @@ def main():
                     else:
                         comments = []
 
-                    count = len(comments)
-                    total_accumulated += count
+                    raw_count = len(comments)
 
-                    if count > 0:
+                    if raw_count > 0:
                         raw_df = pd.DataFrame(comments)
                         analyzed_df = analyze_dataframe_sentiment(
                             raw_df, classifier, kiwi
                         )
-                        collected_data[label] = analyzed_df
+                        valid_count = len(analyzed_df)
+                        total_accumulated += valid_count
 
-                    status.write(
-                        f"[{label}] 완료: 수집 {count}건 | 누적 {total_accumulated}건"
-                    )
+                        if valid_count > 0:
+                            collected_data[label] = analyzed_df
+
+                        status.write(
+                            f"[{label}] 완료: 수집 {raw_count}건 → 전처리 후 유효 {valid_count}건 | 누적 {total_accumulated}건"
+                        )
+                    else:
+                        status.write(f"[{label}] 완료: 수집 0건")
+
                 except HttpError as e:
                     status.write(
                         f"[{label}] 유튜브 API 오류 (상태 코드: {e.resp.status})"
@@ -566,7 +652,7 @@ def main():
                 progress_bar.progress((i + 1) / len(tasks))
 
             status.update(
-                label=f"작업 완료 (총 {total_accumulated}건 수집 및 분석 완료)",
+                label=f"작업 완료 (전처리 후 총 {total_accumulated}건 분석 완료)",
                 state="complete",
                 expanded=False,
             )
@@ -576,24 +662,30 @@ def main():
 
             with tab1:
                 st.subheader("1. 본문 수집 단어 및 감정 판별 (상위 20개 표기)")
-                # [수정 3] 토글(expander) 형태로 표를 접었다 폈다 할 수 있도록 변경
                 for label, df in collected_data.items():
                     with st.expander(
-                        f"[{label}] (총 {len(df)}건 중 상위 20건 표시)",
+                        f"[{label}] (전처리 후 {len(df)}건 중 상위 20건 표시)",
                         expanded=False,
                     ):
                         st.dataframe(
-                            df[["댓글 내용", "추출 단어", "감정", "감성 점수"]].head(20),
+                            df[
+                                [
+                                    "전처리 댓글",
+                                    "추출 단어",
+                                    "감정",
+                                    "감성 점수",
+                                ]
+                            ].head(20),
                             use_container_width=True,
                         )
 
-                st.subheader("2. 감성 점수 계산 요약 (수집 데이터 전체 기준)")
+                st.subheader("2. 감성 점수 계산 요약 (전처리 완료 데이터 기준)")
                 summary_list = []
                 for label, df in collected_data.items():
                     summary_list.append(
                         {
                             "출처": label,
-                            "수집 리뷰 수": len(df),
+                            "유효 리뷰 수": len(df),
                             "평균 감성 점수": round(df["감성 점수"].mean(), 2),
                             "긍정 리뷰 수": (df["감정"] == "긍정").sum(),
                             "부정 리뷰 수": (df["감정"] == "부정").sum(),
@@ -604,7 +696,6 @@ def main():
                 )
 
                 st.subheader("3. 출처별 감정 분석 원형 그래프")
-                # [수정 4] 유튜브(중립, 부정, 긍정)는 상단, 네이버/CGV는 하단에 배치
                 youtube_items = [
                     (label, df)
                     for label, df in collected_data.items()
@@ -629,9 +720,9 @@ def main():
                             draw_sentiment_pie(df, f"{label} 감정 비율")
 
             with tab2:
-                st.subheader("수집된 원본 데이터 (상위 20개 표기)")
+                st.subheader("수집된 원본 및 전처리 비교 데이터 (상위 20개 표기)")
                 for label, df in collected_data.items():
-                    st.write(f"[{label}] 원본 데이터 (상위 20건)")
+                    st.write(f"[{label}] 데이터 (상위 20건)")
                     st.dataframe(df.head(20), use_container_width=True)
 
 
