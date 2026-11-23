@@ -425,7 +425,8 @@ def draw_sentiment_pie(df: pd.DataFrame, title: str):
 # ----------------------------------------------------
 def main():
     set_korean_font()
-    st.title("영화 호프로 알아보는 프레이밍 효과")
+    # [수정 1] 제목 변경
+    st.title("영화 호프로 알아보는 심리학")
 
     classifier = load_sentiment_model()
     kiwi = load_kiwi()
@@ -436,24 +437,26 @@ def main():
         "YouTube Data API v3 키를 입력하세요 (유튜브 분석 시 필수)",
         type="password",
     )
+    # [수정 5] 유튜브 1, 2, 3 -> 유튜브 중립, 부정, 긍정
     url_1 = st.text_input(
-        "유튜브 영상 1 URL",
+        "유튜브 중립 URL",
         placeholder="https://www.youtube.com/watch?v=...",
         key="url_1",
     )
     url_2 = st.text_input(
-        "유튜브 영상 2 URL",
+        "유튜브 부정 URL",
         placeholder="https://www.youtube.com/watch?v=...",
         key="url_2",
     )
     url_3 = st.text_input(
-        "유튜브 영상 3 URL",
+        "유튜브 긍정 URL",
         placeholder="https://www.youtube.com/watch?v=...",
         key="url_3",
     )
 
     # 웹 크롤링 설정 (네이버 영화 / CGV)
-    st.subheader("2. 영화 리뷰 웹사이트 수집 설정 (Selenium)")
+    # [수정 2] '(Selenium)' 문구 제거
+    st.subheader("2. 영화 리뷰 웹사이트 수집 설정")
     naver_target = st.text_input(
         "네이버 영화 제목 (또는 리뷰 URL)",
         placeholder="예: 호프 (또는 네이버 평점 검색 URL)",
@@ -466,8 +469,13 @@ def main():
     )
 
     if st.button("분석 시작"):
-        youtube_urls = [url_1, url_2, url_3]
-        has_youtube = any(u.strip() for u in youtube_urls)
+        # [수정 5] 라벨 매핑 적용
+        youtube_inputs = [
+            ("유튜브 중립", url_1),
+            ("유튜브 부정", url_2),
+            ("유튜브 긍정", url_3),
+        ]
+        has_youtube = any(u.strip() for _, u in youtube_inputs)
         has_naver = bool(naver_target.strip())
         has_cgv = bool(cgv_url.strip())
 
@@ -482,15 +490,15 @@ def main():
             return
 
         tasks = []
-        for idx, u in enumerate(youtube_urls, start=1):
+        for yt_label, u in youtube_inputs:
             if u.strip():
                 vid = extract_video_id(u.strip())
                 if vid:
                     tasks.append(
-                        {"type": "youtube", "label": f"유튜브 {idx}", "target": vid}
+                        {"type": "youtube", "label": yt_label, "target": vid}
                     )
                 else:
-                    st.warning(f"유튜브 {idx}의 비디오 ID를 확인할 수 없습니다.")
+                    st.warning(f"{yt_label}의 비디오 ID를 확인할 수 없습니다.")
 
         if has_naver:
             tasks.append(
@@ -568,12 +576,16 @@ def main():
 
             with tab1:
                 st.subheader("1. 본문 수집 단어 및 감정 판별 (상위 20개 표기)")
+                # [수정 3] 토글(expander) 형태로 표를 접었다 폈다 할 수 있도록 변경
                 for label, df in collected_data.items():
-                    st.write(f"[{label}] (총 {len(df)}건 중 상위 20건 표시)")
-                    st.dataframe(
-                        df[["댓글 내용", "추출 단어", "감정", "감성 점수"]].head(20),
-                        use_container_width=True,
-                    )
+                    with st.expander(
+                        f"[{label}] (총 {len(df)}건 중 상위 20건 표시)",
+                        expanded=False,
+                    ):
+                        st.dataframe(
+                            df[["댓글 내용", "추출 단어", "감정", "감성 점수"]].head(20),
+                            use_container_width=True,
+                        )
 
                 st.subheader("2. 감성 점수 계산 요약 (수집 데이터 전체 기준)")
                 summary_list = []
@@ -592,10 +604,29 @@ def main():
                 )
 
                 st.subheader("3. 출처별 감정 분석 원형 그래프")
-                cols = st.columns(len(collected_data))
-                for col, (label, df) in zip(cols, collected_data.items()):
-                    with col:
-                        draw_sentiment_pie(df, f"{label} 감정 비율")
+                # [수정 4] 유튜브(중립, 부정, 긍정)는 상단, 네이버/CGV는 하단에 배치
+                youtube_items = [
+                    (label, df)
+                    for label, df in collected_data.items()
+                    if label.startswith("유튜브")
+                ]
+                movie_site_items = [
+                    (label, df)
+                    for label, df in collected_data.items()
+                    if not label.startswith("유튜브")
+                ]
+
+                if youtube_items:
+                    yt_cols = st.columns(len(youtube_items))
+                    for col, (label, df) in zip(yt_cols, youtube_items):
+                        with col:
+                            draw_sentiment_pie(df, f"{label} 감정 비율")
+
+                if movie_site_items:
+                    site_cols = st.columns(len(movie_site_items))
+                    for col, (label, df) in zip(site_cols, movie_site_items):
+                        with col:
+                            draw_sentiment_pie(df, f"{label} 감정 비율")
 
             with tab2:
                 st.subheader("수집된 원본 데이터 (상위 20개 표기)")
