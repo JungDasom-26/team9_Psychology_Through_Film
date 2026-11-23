@@ -1,5 +1,5 @@
 # team9_Psycholory_Through_Film
-https://team9framingeffectthroughfilm-9oau4ggd9m7qqwpj7mjjbb.streamlit.app/  
+https://team9psychologythroughfilm-s5nqtw3hemzf8yx9xegaqe.streamlit.app/  
 ## 프로젝트 소개
 2026년 7월 15일에 개봉한 영화 <호프(HOPE)>를 다룬 서로 다른 성격의 유튜브 영상 3가지, 즉 공식 예고편과 긍정 리뷰 및 부정 리뷰에 달린 댓글을 분석하고 해당 데이터들을 시각화함으로써 영상 전달 방식이 영화 감상자들의 여론 형성과 감상평에 영향을 미치는 심리학적 현상을 보여주는 것이 주요 목표이다. 이를 통해 동일한 문화 콘텐츠를 소비하더라도 대중이 접하는 정보의 프레임과 논조에 따라 작품에 대한 평가 기준, 감정 반응, 담론의 방향성이 극단적으로 갈릴 수 있음을 데이터로 나타내고자 한다.  
 ## 팀원
