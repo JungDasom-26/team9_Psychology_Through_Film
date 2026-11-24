@@ -26,6 +26,7 @@ CGV 영화 리뷰
 https://cgv.co.kr/cnm/cgvChart/movieChart/30001297
 
 ## 앱 실행 화면
-<img width="1837" height="965" alt="실행화면3" src="https://github.com/user-attachments/assets/a51f889a-87c4-42ef-a48f-5d72a889cb63" />
-<img width="1897" height="955" alt="샐행화면2" src="https://github.com/user-attachments/assets/ae21ab5a-5709-434a-aca2-198d87011bca" />
-<img width="1867" height="957" alt="실행화면" src="https://github.com/user-attachments/assets/067365c9-82f3-46d8-8414-bd430c443ef1" />
+<img width="1917" height="957" alt="tlgod3" src="https://github.com/user-attachments/assets/2d280cac-bff4-4b16-a47d-d5fe56ca3bf6" />
+<img width="1897" height="942" alt="tlgod2" src="https://github.com/user-attachments/assets/4b9335b7-e75c-4e48-ac5a-e89993b96ace" />
+<img width="1857" height="947" alt="실행" src="https://github.com/user-attachments/assets/4298080e-eb3e-442a-a3f0-f6dd7f39d533" />
+<img width="1915" height="955" alt="tlgod4" src="https://github.com/user-attachments/assets/3f3ee9b1-f3c9-4044-8d81-d8aad504bf47" />
